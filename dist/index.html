@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="SUGAR 粒子开场。由漫天荧光绿粒子，汇成一个清晰的名字。">
+  <title>SUGAR · 每一次出发，都有方向</title>
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <style>
+    :root { color-scheme: dark; font-family: Arial, "Microsoft YaHei", sans-serif; background: #000; color: #f7f7f2; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; }
+    body { background: #000; }
+    .homepage { min-height: 100svh; background: #10110d; position: relative; overflow: hidden; }
+    .header { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; padding: 34px 5.5vw; }
+    .brand { font-size: 25px; letter-spacing: -.06em; font-weight: 900; color: #C6FF00; }
+    .header-note { color: #9d9f92; font-size: 11px; letter-spacing: .14em; }
+    .hero { position: relative; z-index: 1; min-height: calc(100svh - 180px); display: flex; flex-direction: column; justify-content: center; padding: 6vh 12vw 13vh; }
+    .hero h1 { font-size: clamp(42px, 7.3vw, 116px); font-weight: 600; line-height: 1.3; letter-spacing: -.055em; margin: 0; outline: none; }
+    .hero h1 span { color: #C6FF00; }
+    .hero p { font-size: clamp(14px, 1.2vw, 18px); color: #acafa2; line-height: 1.8; margin-top: 28px; letter-spacing: .07em; }
+    .orbit { position: absolute; width: 58vw; height: 58vw; border: 1px solid #343a21; border-radius: 50%; top: 12vh; left: 61%; }
+    .orbit::before, .orbit::after { content: ''; position: absolute; inset: 11%; border: 1px solid #272d1c; border-radius: 50%; }
+    .orbit::after { inset: 23%; }
+    .footer { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; padding: 22px 5.5vw; border-top: 1px solid #2a2d22; color: #9d9f92; font-size: 12px; letter-spacing: .07em; }
+    .footer span:last-child { color: #C6FF00; }
+    @media (max-width: 767px) { .header { padding: 27px 7vw; } .header-note { font-size: 9px; letter-spacing: .08em; } .hero { padding: 6vh 8vw 14vh; } .orbit { width: 100vw; height: 100vw; left: 58%; top: 33%; } .footer { padding: 23px 7vw; font-size: 10px; } }
+  </style>
+  <script src="./sugar-intro.js" defer></script>
+</head>
+<body>
+  <!-- Replace this <main> with your existing homepage. The intro never navigates. -->
+  <main class="homepage" id="homepage">
+    <header class="header"><span class="brand">SUGAR</span><span class="header-note">MAKE IT YOURS.</span></header>
+    <div class="orbit" aria-hidden="true"></div>
+    <section class="hero" aria-labelledby="hero-title">
+      <h1 id="hero-title" tabindex="-1" data-intro-focus>每一次出发，<br><span>都有方向。</span></h1>
+      <p>连接灵感，探索下一种可能。</p>
+    </section>
+    <footer class="footer"><span>SUGAR · 向前，去探索更多。</span><span>THE JOURNEY BEGINS ↗</span></footer>
+  </main>
+  <sugar-intro slogan="滑动解锁智慧交通之旅"></sugar-intro>
+  <noscript><style>sugar-intro { display: none; }</style></noscript>
+</body>
+</html>
