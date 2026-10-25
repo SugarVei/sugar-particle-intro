@@ -12,6 +12,7 @@
     * { box-sizing: border-box; }
     html, body { margin: 0; min-height: 100%; }
     body { background: #000; }
+    sugar-intro:not(:defined) { position: fixed; inset: 0; z-index: 2147483647; display: block; background: #000; }
     .homepage { min-height: 100svh; background: #10110d; position: relative; overflow: hidden; }
     .header { position: relative; z-index: 1; display: flex; justify-content: space-between; align-items: center; padding: 34px 5.5vw; }
     .brand { font-size: 25px; letter-spacing: -.06em; font-weight: 900; color: #C6FF00; }
@@ -41,6 +42,6 @@
     <footer class="footer"><span>SUGAR · 向前，去探索更多。</span><span>THE JOURNEY BEGINS ↗</span></footer>
   </main>
   <sugar-intro slogan="滑动解锁智慧交通之旅"></sugar-intro>
-  <noscript><style>sugar-intro { display: none; }</style></noscript>
+  <noscript><style>sugar-intro { display: none !important; }</style></noscript>
 </body>
 </html>
