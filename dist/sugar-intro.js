@@ -1,6 +1,6 @@
 /* SUGAR intro — buildless, dependency-free custom element.
  * Usage: <sugar-intro slogan="滑动解锁智慧交通之旅"></sugar-intro>
- * The only pointer interaction is the enter button. No cursor tracking.
+ * Pointer proximity repels and drags particles; damped springs restore the word.
  */
 (() => {
   'use strict';
@@ -26,7 +26,7 @@
         isolation: isolate; contain: layout paint style;
       }
       *, *::before, *::after { box-sizing: border-box; }
-      .scene { position: absolute; inset: 0; overflow: hidden; outline: none; }
+      .scene { position: absolute; inset: 0; overflow: hidden; outline: none; touch-action: none; }
       canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
       .sr-only {
         position: absolute; width: 1px; height: 1px; padding: 0;
@@ -35,6 +35,7 @@
       }
       .slogan {
         position: absolute; left: 50%; top: var(--slogan-y, 60%);
+        z-index: 1; will-change: transform;
         transform: translate(-50%, -50%); margin: 0;
         display: flex; align-items: center; justify-content: center; gap: 15px;
         width: max-content; max-width: calc(100% - 32px);
@@ -91,6 +92,11 @@
       this._width = this._height = this._dpr = 0;
       this._renderCount = 0;
       this._renderCost = 0;
+      this._pointer = { active: false, x: 0, y: 0, vx: 0, vy: 0, time: 0 };
+      this._activePointerId = null;
+      this._pointerInRange = false;
+      this._interactionEnergy = 0;
+      this._lastPhysicsTime = 0;
       this._lastNow = performance.now();
       this._lastPaint = -100;
       this._needsResize = true;
@@ -106,10 +112,14 @@
         .map(node => ({ node, inert: node.inert }));
       this._blocked.forEach(({ node }) => { node.inert = true; });
       this._onEnter = () => this.enter();
-      this._onResize = () => { this._needsResize = true; };
+      this._onResize = () => {
+        this._needsResize = true;
+        this._clearPointer();
+      };
       this._onVisibility = () => {
         cancelAnimationFrame(this._raf);
         this._raf = null;
+        this._clearPointer();
         if (!document.hidden && this._connected) {
           this._lastNow = performance.now();
           this._raf = requestAnimationFrame(this._tick);
@@ -121,14 +131,74 @@
           if (!this._button.disabled) this._button.focus({ preventScroll: true });
         }
       };
+      this._onPointerMove = event => {
+        if (!event.isPrimary || this._state === 'exiting') return;
+        if (event.pointerType === 'touch' && event.pointerId !== this._activePointerId) return;
+        this._updatePointer(event);
+      };
+      this._onPointerDown = event => {
+        if (!event.isPrimary || this._state === 'exiting' || event.composedPath().includes(this._button)) return;
+        if (event.pointerType !== 'mouse') {
+          this._activePointerId = event.pointerId;
+          this._scene.setPointerCapture(event.pointerId);
+        }
+        this._updatePointer(event);
+      };
+      this._onPointerEnd = event => {
+        if (event.pointerId === this._activePointerId) this._clearPointer();
+      };
+      this._onPointerLeave = event => {
+        if (event.pointerType === 'mouse') this._clearPointer();
+      };
+      this._onBlur = () => this._clearPointer();
       this._button.addEventListener('click', this._onEnter);
       this._scene.addEventListener('keydown', this._onKeydown);
+      this._scene.addEventListener('pointermove', this._onPointerMove, { passive: true });
+      this._scene.addEventListener('pointerdown', this._onPointerDown, { passive: true });
+      this._scene.addEventListener('pointerup', this._onPointerEnd, { passive: true });
+      this._scene.addEventListener('pointercancel', this._onPointerEnd, { passive: true });
+      this._scene.addEventListener('lostpointercapture', this._onPointerEnd, { passive: true });
+      this._scene.addEventListener('pointerleave', this._onPointerLeave, { passive: true });
+      window.addEventListener('blur', this._onBlur);
       window.addEventListener('resize', this._onResize, { passive: true });
       window.visualViewport?.addEventListener('resize', this._onResize, { passive: true });
       document.addEventListener('visibilitychange', this._onVisibility);
       this._scene.focus({ preventScroll: true });
       this._tick = this._tick.bind(this);
       if (!document.hidden) this._raf = requestAnimationFrame(this._tick);
+    }
+
+    _updatePointer(event) {
+      // Input can arrive before the first animation frame has measured the host.
+      if (!this._width || !this._height) return;
+      const pointer = this._pointer;
+      const now = performance.now();
+      const x = event.clientX - this._originX;
+      const y = event.clientY - this._originY;
+      const dt = clamp((now - pointer.time) / 1000, .008, .08);
+      if (pointer.active) {
+        pointer.vx = pointer.vx * .35 + clamp((x - pointer.x) / dt, -1800, 1800) * .65;
+        pointer.vy = pointer.vy * .35 + clamp((y - pointer.y) / dt, -1800, 1800) * .65;
+      } else {
+        pointer.vx = pointer.vy = 0;
+      }
+      pointer.x = x;
+      pointer.y = y;
+      pointer.time = now;
+      pointer.active = true;
+      const bounds = this._bounds;
+      const radius = this._interactionRadius;
+      this._pointerInRange = !!bounds && x > bounds.left - radius && x < bounds.right + radius
+        && y > bounds.top - radius && y < bounds.bottom + radius;
+    }
+
+    _clearPointer() {
+      this._pointer.active = false;
+      this._pointer.vx = this._pointer.vy = 0;
+      this._pointerInRange = false;
+      const id = this._activePointerId;
+      this._activePointerId = null;
+      if (id !== null && this._scene.hasPointerCapture(id)) this._scene.releasePointerCapture(id);
     }
 
     _sampleTargets(count) {
@@ -209,6 +279,8 @@
         frequency: random(.55, 1.25),
         drift: random(.5, mobile ? .9 : 1.55),
         vx: random(-13, 13), vy: random(-13, 13),
+        offsetX: 0, offsetY: 0, springVx: 0, springVy: 0,
+        response: random(.5, 1),
         delay: random(0, 180), duration: random(2460, 2640)
       };
     }
@@ -226,6 +298,9 @@
       this._width = width;
       this._height = height;
       this._dpr = dpr;
+      this._originX = rect.left;
+      this._originY = rect.top;
+      this._interactionRadius = width < 768 ? clamp(width * .15, 46, 74) : clamp(width * .09, 100, 156);
       this._canvas.width = Math.round(width * dpr);
       this._canvas.height = Math.round(height * dpr);
       this._context?.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -259,6 +334,7 @@
         }
         particle.tx = target.x;
         particle.ty = target.y;
+        particle.offsetX = particle.offsetY = particle.springVx = particle.springVy = 0;
         if (firstLayout) {
           particle.fromX = particle.x + particle.vx * .36;
           particle.fromY = particle.y + particle.vy * .36;
@@ -278,7 +354,8 @@
       this._time += Math.min(64, Math.max(0, now - this._lastNow));
       this._lastNow = now;
       if (this._needsResize) this._layout();
-      const frameInterval = this._state === 'idle' ? 1000 / 30 : 1000 / 60;
+      const resting = this._state === 'idle' && !this._pointerInRange && this._interactionEnergy < .12;
+      const frameInterval = resting ? 1000 / 30 : 1000 / 60;
       if (now - this._lastPaint >= frameInterval - 1) {
         this._lastPaint = now;
         this._render();
@@ -292,6 +369,21 @@
       if (!ctx) return;
       const t = this._time;
       const seconds = t / 1000;
+      const dt = clamp((t - this._lastPhysicsTime) / 1000, 0, .064);
+      this._lastPhysicsTime = t;
+      // Exact damped spring integration stays stable at varying frame rates.
+      const damping = 10.2;
+      const frequency = 9.65;
+      const decay = Math.exp(-damping * dt);
+      const cos = Math.cos(frequency * dt);
+      const sin = Math.sin(frequency * dt);
+      const pointer = this._pointer;
+      const radius = this._interactionRadius;
+      const strength = radius * (this._width < 768 ? .38 : .4);
+      const pointerPull = this._width < 768 ? .01 : .015;
+      let interactionEnergy = 0;
+      pointer.vx *= Math.exp(-9 * dt);
+      pointer.vy *= Math.exp(-9 * dt);
       const exiting = this._state === 'exiting';
       const exitProgress = exiting ? clamp((t - this._exitStart) / 900, 0, 1) : 0;
       if (exiting && exitProgress >= 1) {
@@ -325,11 +417,44 @@
           p.y = p.fromY + (p.ty - p.fromY) * eased;
           if (progress < 1) complete = false;
         } else {
-          // Fixed targets forever: no global transforms, rotation, breathing or morphing.
-          p.x = p.tx + Math.sin(seconds * .46 + p.phase) * p.drift;
-          p.y = p.ty + Math.cos(seconds * .37 + p.phase * 1.31) * p.drift;
+          // Home targets never move. Only a local, reversible spring offset responds.
+          const homeX = p.tx + Math.sin(seconds * .46 + p.phase) * p.drift;
+          const homeY = p.ty + Math.cos(seconds * .37 + p.phase * 1.31) * p.drift;
+          let goalX = 0;
+          let goalY = 0;
+          if (pointer.active && this._pointerInRange) {
+            const dx = homeX - pointer.x;
+            const dy = homeY - pointer.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance < radius) {
+              const influence = smoothstep(1 - distance / radius);
+              const nx = distance > .1 ? dx / distance : Math.cos(p.phase);
+              const ny = distance > .1 ? dy / distance : Math.sin(p.phase);
+              goalX = (nx * strength + pointer.vx * pointerPull) * influence * p.response;
+              goalY = (ny * strength + pointer.vy * pointerPull) * influence * p.response;
+              const magnitude = Math.hypot(goalX, goalY);
+              const limit = radius * .72;
+              if (magnitude > limit) {
+                goalX *= limit / magnitude;
+                goalY *= limit / magnitude;
+              }
+            }
+          }
+          const deltaX = p.offsetX - goalX;
+          const deltaY = p.offsetY - goalY;
+          const springX = (p.springVx + damping * deltaX) / frequency;
+          const springY = (p.springVy + damping * deltaY) / frequency;
+          p.offsetX = goalX + decay * (deltaX * cos + springX * sin);
+          p.offsetY = goalY + decay * (deltaY * cos + springY * sin);
+          p.springVx = decay * (p.springVx * cos - (damping * springX + frequency * deltaX) * sin);
+          p.springVy = decay * (p.springVy * cos - (damping * springY + frequency * deltaY) * sin);
+          interactionEnergy = Math.max(interactionEnergy, Math.abs(p.offsetX), Math.abs(p.offsetY),
+            Math.abs(p.springVx) * .06, Math.abs(p.springVy) * .06);
+          p.x = homeX + p.offsetX;
+          p.y = homeY + p.offsetY;
         }
       }
+      this._interactionEnergy = interactionEnergy;
       if (!exiting && complete && this._state !== 'idle') this._state = 'idle';
       // Five color batches keep fillStyle changes cheap. No per-particle shadow blur.
       for (let color = 0; color < PALETTE.length; color++) {
@@ -359,6 +484,7 @@
     enter() {
       if (!this._connected || this._state === 'exiting' || this._state === 'done') return;
       this._state = 'exiting';
+      this._clearPointer();
       this._exitStart = this._time;
       this._button.disabled = true;
       for (const p of this._particles) {
@@ -387,6 +513,14 @@
       cancelAnimationFrame(this._raf);
       this._button.removeEventListener('click', this._onEnter);
       this._scene.removeEventListener('keydown', this._onKeydown);
+      this._clearPointer();
+      this._scene.removeEventListener('pointermove', this._onPointerMove);
+      this._scene.removeEventListener('pointerdown', this._onPointerDown);
+      this._scene.removeEventListener('pointerup', this._onPointerEnd);
+      this._scene.removeEventListener('pointercancel', this._onPointerEnd);
+      this._scene.removeEventListener('lostpointercapture', this._onPointerEnd);
+      this._scene.removeEventListener('pointerleave', this._onPointerLeave);
+      window.removeEventListener('blur', this._onBlur);
       window.removeEventListener('resize', this._onResize);
       window.visualViewport?.removeEventListener('resize', this._onResize);
       document.removeEventListener('visibilitychange', this._onVisibility);
@@ -403,6 +537,10 @@
         particleCount: this._particles.length,
         viewport: { width: this._width, height: this._height, dpr: this._dpr },
         wordBounds: { ...this._bounds },
+        interaction: {
+          pointerActive: this._pointer.active, radius: this._interactionRadius,
+          displacement: this._interactionEnergy
+        },
         renderedFrames: this._renderCount,
         averageDrawMs: this._renderCount ? this._renderCost / this._renderCount : 0
       };
