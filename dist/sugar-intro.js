@@ -1,5 +1,5 @@
 /* SUGAR intro — buildless, dependency-free custom element.
- * Usage: <sugar-intro slogan="滑动解锁智慧交通之旅"></sugar-intro>
+ * Usage: <sugar-intro></sugar-intro>
  * Pointer proximity repels and drags particles; damped springs restore the word.
  */
 (() => {
@@ -33,17 +33,6 @@
         margin: -1px; overflow: hidden; clip-path: inset(50%);
         white-space: nowrap; border: 0;
       }
-      .slogan {
-        position: absolute; left: 50%; top: var(--slogan-y, 60%);
-        z-index: 1; will-change: transform;
-        transform: translate(-50%, -50%); margin: 0;
-        display: flex; align-items: center; justify-content: center; gap: 15px;
-        width: max-content; max-width: calc(100% - 32px);
-        font-size: clamp(16px, 2.1vw, 30px); font-weight: 400;
-        line-height: 1.5; letter-spacing: .025em; white-space: nowrap;
-        user-select: none; -webkit-user-select: none; cursor: default;
-      }
-      .chevron { color: #C6FF00; font-size: 1.2em; font-weight: 400; }
       button {
         position: absolute; left: 50%; top: 78%;
         transform: translate(-50%, -50%);
@@ -57,18 +46,15 @@
       button:focus-visible { outline: 2px solid #fff; outline-offset: 6px; }
       button:disabled { cursor: default; }
       @media (max-width: 767px) {
-        .slogan { gap: 10px; letter-spacing: 0; }
         button { width: 116px; height: 44px; font-size: 15px; }
       }
       @media (max-height: 440px) {
-        .slogan { font-size: clamp(14px, 3.6vh, 21px); }
         button { height: 38px; }
       }
     </style>
-    <div class="scene" role="dialog" aria-modal="true" aria-labelledby="intro-title" aria-describedby="intro-slogan" tabindex="-1">
+    <div class="scene" role="dialog" aria-modal="true" aria-labelledby="intro-title" tabindex="-1">
       <h1 id="intro-title" class="sr-only">SUGAR</h1>
       <canvas aria-hidden="true"></canvas>
-      <p id="intro-slogan" class="slogan"><span class="chevron" aria-hidden="true">&gt;</span><span class="copy"></span></p>
       <button type="button" aria-label="进入首页">进入</button>
     </div>`;
 
@@ -82,10 +68,7 @@
       this._canvas = this.shadowRoot.querySelector('canvas');
       this._context = this._canvas.getContext('2d', { alpha: false });
       this._scene = this.shadowRoot.querySelector('.scene');
-      this._slogan = this.shadowRoot.querySelector('.slogan');
       this._button = this.shadowRoot.querySelector('button');
-      this.shadowRoot.querySelector('.copy').textContent =
-        this.getAttribute('slogan') || '滑动解锁智慧交通之旅';
       this._time = 0;
       this._state = 'scatter';
       this._particles = [];
@@ -262,7 +245,6 @@
         [selected[i], selected[j]] = [selected[j], selected[i]];
       }
       mask.width = mask.height = 0;
-      this.style.setProperty('--slogan-y', `${Math.max(height * .6, bottom + height * .075)}px`);
       return selected;
     }
 
@@ -473,7 +455,6 @@
       ctx.globalAlpha = 1;
       if (exiting) {
         const textAlpha = 1 - smoothstep(exitProgress / .38);
-        this._slogan.style.opacity = textAlpha;
         this._button.style.opacity = textAlpha;
         this.style.opacity = 1 - smoothstep((exitProgress - .12) / .88);
       }
